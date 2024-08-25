@@ -2,6 +2,7 @@ use csv::Reader;
 use plotters::prelude::*;
 use std::collections::HashMap;
 use std::error::Error;
+use image::{DynamicImage, GenericImage, RgbaImage};
 use std::env;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -28,23 +29,58 @@ fn main() -> Result<(), Box<dyn Error>> {
             .or_insert([0; 24])[hour] += 1;
     }
 
+    let mut filenames_by_hour = Vec::new();
     // Creating histograms for each name
     for (name, hour_counts) in &data {
         create_histogram(name, hour_counts)?;
+        filenames_by_hour.push(format!("{}-by-hour.png", name));
+    }
+
+    let one_image = args.contains(&"--one-image".to_string());
+    if one_image {
+        // Merge all generated images into a single image
+        merge_images(&filenames_by_hour, "all-by-hour.png")?;
     }
 
     Ok(())
 }
 
+fn merge_images(image_paths: &[String], output_filename: &str) ->  Result<(), Box<dyn Error>> {
+    let padding = 10;
+    let images: Vec<DynamicImage> = image_paths.iter()
+        .map(|path| image::open(path).expect("Failed to open image"))
+        .collect();
+
+    let image_width = images[0].width();
+    let image_height = images[0].height();
+
+    let total_width = (image_width + padding) * images.len() as u32 + padding;
+    let total_height = image_height;
+
+    let mut combined_image = RgbaImage::new(total_width, total_height);
+
+    let mut x_offset = 0;
+
+    for img in images {
+        combined_image.copy_from(&img, x_offset, 0)?;
+        x_offset += image_width + padding;
+    }
+
+    combined_image.save(output_filename)?;
+    println!("Saved combined histogram to {}", output_filename);
+
+    Ok(())
+}
+
 fn create_histogram(name: &str, hour_counts: &[u32; 24]) -> Result<(), Box<dyn Error>> {
-    let filename = format!("{}.png", name);
+    let filename = format!("{}-by-hour.png", name);
     let root = BitMapBackend::new(&filename, (640, 480)).into_drawing_area();
     root.fill(&WHITE)?;
 
     let max_count = *hour_counts.iter().max().unwrap_or(&0);
 
     let mut chart = ChartBuilder::on(&root)
-        .caption(format!("Hourly Distribution for {}", name), ("sans-serif", 40))
+        .caption(format!("distribuzione oraria di {}", name), ("sans-serif", 40))
         .x_label_area_size(35)
         .y_label_area_size(40)
         .margin(5)

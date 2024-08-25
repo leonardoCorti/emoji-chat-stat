@@ -24,6 +24,7 @@ fn main() {
 
     let status = Command::new("cacca_graph.exe")
         .arg(output_file)
+        .arg("--one-image")
         .status()
         .expect("Failed to execute cacca_graph");
 
