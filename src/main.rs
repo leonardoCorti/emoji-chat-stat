@@ -1,69 +1,35 @@
+use std::process::{Command, exit};
 use std::env;
-use std::fs::File;
-use std::io::{self, BufRead};
-use std::error::Error;
-use csv::Writer;
-use regex::Regex;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() == 1 {
-        eprintln!("Usage: {} <file_path>", args[0]);
-        return Ok(());
-    }
-    let file_path = &args[1];
 
-    let file = File::open(file_path)?;
-    let reader = io::BufReader::new(file);
-
-    let mut wtr = Writer::from_path(file_path.replace("txt", "csv"))?;
-
-    wtr.write_record(&["Date", "Hour", "Name"])?;
-
-    for line in reader.lines() {
-        let line = line?;
-
-        let (date, rest) = match line.split_once(", ") {
-            Some(split) => split,
-            None => continue,
-        };
-
-        let (hour, rest) = match rest.split_once(" - ") {
-            Some(split) => split,
-            None => continue,
-        };
-
-        let (name, rest) = match rest.split_once(": ") {
-            Some(split) => split,
-            None => continue,
-        };
-
-        if rest.contains("💩") {
-            match extract_time(rest){
-                Some(new_time) => {
-                    wtr.write_record(&[date, &new_time, name])?;
-                },
-                None => {
-                    wtr.write_record(&[date, hour, name])?;
-                } 
-            }
-        }
-
-
+    if args.len() != 2 {
+        eprintln!("Usage: bin0 <input.txt>");
+        exit(1);
     }
 
-    wtr.flush()?;
-    println!("Data has been written to {}",file_path.replace("txt", "csv"));
+    let input_file = &args[1];
+    let output_file = input_file.replace(".txt", ".csv");
 
-    Ok(())
+    let status = Command::new("cacca_text.exe")
+        .arg(input_file)
+        .status()
+        .expect("Failed to execute cacca_text");
+
+    if !status.success() {
+        eprintln!("cacca_text failed");
+        exit(1);
+    }
+
+    let status = Command::new("cacca_graph.exe")
+        .arg(output_file)
+        .status()
+        .expect("Failed to execute cacca_graph");
+
+    if !status.success() {
+        eprintln!("cacca_graph failed");
+        exit(1);
+    }
 }
 
-fn extract_time(s: &str) -> Option<String> {
-    let re = Regex::new(r"([0-9]|[01]\d|2[0-3]):([0-5]\d)").unwrap();
-
-    if let Some(caps) = re.captures(s) {
-        return Some(caps[0].to_string());
-    }
-    
-    None
-}
