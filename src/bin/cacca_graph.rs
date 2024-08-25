@@ -45,20 +45,55 @@ fn main() -> Result<(), Box<dyn Error>> {
             .entry(weekday).or_insert(0) += 1;
     }
 
+    let one_image = args.contains(&"--one-image".to_string());
+
+    let mut max_hour_count: Option<u32> = None;
+    let mut max_day_count: Option<u32> = None;
+    if one_image {
+        let mut max_hour: u32 = 0;
+        let mut max_day: u32 = 0;
+        for (_, day_count) in &data_day {
+
+            let weekdays = vec![
+                Weekday::Mon,
+                Weekday::Tue,
+                Weekday::Wed,
+                Weekday::Thu,
+                Weekday::Fri,
+                Weekday::Sat,
+                Weekday::Sun,
+            ];
+            let counts: Vec<u32> = weekdays.iter().map(|&d| day_count.get(&d).cloned().unwrap_or(0)).collect();
+            let max_day_tmp = *counts.iter().max().unwrap_or(&0);
+            if max_day_tmp > max_day {
+                max_day = max_day_tmp;
+            }
+        }
+
+        for (_, hour_counts) in &data {
+            let max_hour_tmp = *hour_counts.iter().max().unwrap_or(&0);
+            if max_hour_tmp > max_hour {
+                max_hour = max_hour_tmp;
+            }
+        }
+        max_hour_count = Some(max_hour);
+        max_day_count = Some(max_day);
+    }
+
     let mut filenames_by_weekday = Vec::new();
+
     for (name, day_count) in &data_day {
-        create_histogram_weekday(name, day_count)?;
+        create_histogram_weekday(name, day_count, max_day_count)?;
         filenames_by_weekday.push(format!("{}-by-weekday.png", name));   
     }
 
     let mut filenames_by_hour = Vec::new();
     // Creating histograms for each name
     for (name, hour_counts) in &data {
-        create_histogram_hours(name, hour_counts)?;
+        create_histogram_hours(name, hour_counts, max_hour_count)?;
         filenames_by_hour.push(format!("{}-by-hour.png", name));
     }
 
-    let one_image = args.contains(&"--one-image".to_string());
     if one_image {
         merge_images(&filenames_by_hour, "all-by-hour.png")?;
         merge_images(&filenames_by_weekday, "all-by-weekday.png")?;
@@ -94,7 +129,7 @@ fn merge_images(image_paths: &[String], output_filename: &str) ->  Result<(), Bo
     Ok(())
 }
 
-fn create_histogram_weekday(name: &str, day_count: &HashMap<Weekday, u32>) -> Result<(), Box<dyn Error>> {
+fn create_histogram_weekday(name: &str, day_count: &HashMap<Weekday, u32>, max: Option<u32>) -> Result<(), Box<dyn Error>> {
     let filename = format!("{}-by-weekday.png", name);
     let root = BitMapBackend::new(&filename, (640, 480)).into_drawing_area();
     root.fill(&WHITE)?;
@@ -110,7 +145,7 @@ fn create_histogram_weekday(name: &str, day_count: &HashMap<Weekday, u32>) -> Re
     ];
 
     let counts: Vec<u32> = weekdays.iter().map(|&d| day_count.get(&d).cloned().unwrap_or(0)).collect();
-    let max_count = *counts.iter().max().unwrap_or(&0);
+    let max_count = max.unwrap_or( *counts.iter().max().unwrap_or(&0) );
 
     let mut chart = ChartBuilder::on(&root)
         .caption(format!("distribuzione settimanale {}", name), ("sans-serif", 40))
@@ -152,19 +187,19 @@ fn create_histogram_weekday(name: &str, day_count: &HashMap<Weekday, u32>) -> Re
     Ok(())
 }
 
-fn create_histogram_hours(name: &str, hour_counts: &[u32; 24]) -> Result<(), Box<dyn Error>> {
+fn create_histogram_hours(name: &str, hour_counts: &[u32; 24], max: Option<u32>) -> Result<(), Box<dyn Error>> {
     let filename = format!("{}-by-hour.png", name);
     let root = BitMapBackend::new(&filename, (640, 480)).into_drawing_area();
     root.fill(&WHITE)?;
 
-    let max_count = *hour_counts.iter().max().unwrap_or(&0);
+    let max_count = max.unwrap_or( *hour_counts.iter().max().unwrap_or(&0) );
 
     let mut chart = ChartBuilder::on(&root)
         .caption(format!("distribuzione oraria di {}", name), ("sans-serif", 40))
         .x_label_area_size(35)
         .y_label_area_size(40)
         .margin(5)
-        .build_cartesian_2d(0..23, 0u32..max_count)?;
+        .build_cartesian_2d(0..24, 0u32..max_count)?;
 
     chart.configure_mesh().draw()?;
 
