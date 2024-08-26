@@ -4,16 +4,18 @@ use std::env;
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() != 2 {
-        eprintln!("Usage: emoji-chat-stat  <input.txt>");
+    if args.len() != 3 {
+        eprintln!("Usage: emoji-chat-stat  <input.txt> <emoji_searched>");
         exit(1);
     }
 
     let input_file = &args[1];
+    let emoji_searched = &args[2];
     let output_file = input_file.replace(".txt", ".csv");
 
     let status = Command::new("emoji2csv")
         .arg(input_file)
+        .arg(emoji_searched)
         .status()
         .expect("Failed to execute emoji2csv");
 

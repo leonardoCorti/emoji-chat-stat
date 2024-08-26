@@ -7,11 +7,12 @@ use regex::Regex;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
-    if args.len() == 1 {
-        eprintln!("Usage: {} <file_path>", args[0]);
+    if args.len() < 3 {
+        eprintln!("Usage: {} <file_path> <emoji_to_search>", args[0]);
         return Ok(());
     }
     let file_path = &args[1];
+    let emoji_searched = &args[2];
 
     let file = File::open(file_path)?;
     let reader = io::BufReader::new(file);
@@ -38,7 +39,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             None => continue,
         };
 
-        if rest.contains("💩") {
+        if rest.contains(emoji_searched) {
             match extract_time(rest){
                 Some(new_time) => {
                     wtr.write_record(&[date, &new_time, name])?;
