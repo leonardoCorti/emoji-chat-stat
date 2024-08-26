@@ -1,15 +1,15 @@
 [package]
-name = "cacca"
+name = "emoji-chat-stat"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "cacca_text"
-path = "src/bin/cacca_text.rs"
+name = "emoji2csv"
+path = "src/bin/emoji2csv.rs"
 
 [[bin]]
-name = "cacca_graph"
-path = "src/bin/cacca_graph.rs"
+name = "emojicsv2graph"
+path = "src/bin/emojicsv2graph.rs"
 
 [dependencies]
 chrono = "0.4.38"
