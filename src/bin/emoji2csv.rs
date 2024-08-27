@@ -1,25 +1,43 @@
 use std::env;
 use std::fs::File;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, BufReader, Write};
 use std::error::Error;
-use csv::Writer;
 use regex::Regex;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 3 {
-        eprintln!("Usage: {} <file_path> <emoji_to_search>", args[0]);
+
+    let emoji_searched = if !args[1].starts_with('-') {
+        &args[1]
+    } else {
+        eprintln!("Usage: {} <emoji_to_search> [<input_file>] [-o <output_file>]", args[0]);
         return Ok(());
-    }
-    let file_path = &args[1];
-    let emoji_searched = &args[2];
+    };
 
-    let file = File::open(file_path)?;
-    let reader = io::BufReader::new(file);
+    let input: Box<dyn BufRead> = if args.len() > 2 && !args[2].starts_with('-') {
+        Box::new(BufReader::new(File::open(&args[2])?))
+    } else {
+        Box::new(BufReader::new(io::stdin()))
+    };
 
-    let mut wtr = Writer::from_path(file_path.replace("txt", "csv"))?;
+    let output: Box<dyn Write> = if let Some(pos) = args.iter().position(|x| x == "-o") {
+        if pos + 1 < args.len() {
+            Box::new(File::create(&args[pos + 1])?)
+        } else {
+            eprintln!("Expected output file after -o");
+            return Ok(());
+        }
+    } else {
+        Box::new(io::stdout())
+    };
 
-    wtr.write_record(&["Date", "Hour", "Name"])?;
+    process_input(input, output, emoji_searched)?;
+    Ok(())
+ }
+
+
+fn process_input<R: BufRead, W: Write>(reader: R, mut writer: W, emoji_searched: &str) -> io::Result<()> {
+    writer.write_all(b"Date,Hour,Name\n")?;
 
     for line in reader.lines() {
         let line = line?;
@@ -40,22 +58,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
 
         if rest.contains(emoji_searched) {
-            match extract_time(rest){
-                Some(new_time) => {
-                    wtr.write_record(&[date, &new_time, name])?;
-                },
-                None => {
-                    wtr.write_record(&[date, hour, name])?;
-                } 
-            }
+            let new_time = extract_time(rest).unwrap_or_else(|| hour.to_string());
+            writer.write_all(format!("{},{},{}\n", date, new_time, name).as_bytes())?;
         }
-
-
     }
 
-    wtr.flush()?;
-    println!("Data has been written to {}",file_path.replace("txt", "csv"));
-
+    writer.flush()?;
     Ok(())
 }
 

@@ -13,9 +13,10 @@ fn main() {
     let emoji_searched = &args[2];
     let output_file = input_file.replace(".txt", ".csv");
 
-    let status = Command::new("emoji2csv")
-        .arg(input_file)
+    let status = Command::new("../../target/release/emoji2csv")
         .arg(emoji_searched)
+        .arg(input_file)
+        .arg("-o").arg(output_file.clone())
         .status()
         .expect("Failed to execute emoji2csv");
 

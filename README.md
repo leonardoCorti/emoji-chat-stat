@@ -6,6 +6,5 @@ Usage: emojicsv2graph <file_path> [--one-image]
 the --one-image will make all the graphs have the same scale on the Y axis
 
 # emoji2csv
-Usage: emoji2csv <file_path> <emoji_to_search>
-
-
+Usage: emoji2csv <emoji_to_search> [<input_file>] [-o <output_file>]
+if no input file is provided it reads from stdin, if no output file is provided it prints on stdout
