@@ -49,8 +49,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if one_image {
-        merge_images(&filenames_by_hour, "all-by-hour.png")?;
-        merge_images(&filenames_by_weekday, "all-by-weekday.png")?;
+        filenames_by_hour.sort();
+        filenames_by_weekday.sort();
+        merge_horizontal_images(&filenames_by_hour, "all-by-hour.png")?;
+        merge_horizontal_images(&filenames_by_weekday, "all-by-weekday.png")?;
+        let images: Vec<&str> = vec!["all-by-hour.png", "all-by-weekday.png"];
+        merge_vertical_images(&images, "all-graphs.png")?;
     }
 
     Ok(())
@@ -114,7 +118,7 @@ fn process_input(mut reader: Reader<Box<dyn Read>>) -> Result<(HashMap<String, [
     Ok((data, data_day))
 }
 
-fn merge_images(image_paths: &[String], output_filename: &str) ->  Result<(), Box<dyn Error>> {
+fn merge_horizontal_images(image_paths: &[String], output_filename: &str) ->  Result<(), Box<dyn Error>> {
     let padding = 10;
     let images: Vec<DynamicImage> = image_paths.iter()
         .map(|path| image::open(path).expect("Failed to open image"))
@@ -227,3 +231,27 @@ fn create_histogram_hours(name: &str, hour_counts: &[u32; 24], max: Option<u32>)
     Ok(())
 }
 
+fn merge_vertical_images(image_paths: &Vec<&str>, output_filename: &str) -> Result<(), Box<dyn Error>> {
+    let padding = 10;
+    let images: Vec<DynamicImage> = image_paths.iter()
+        .map(|path| image::open(path).expect("failed to open immage"))
+        .collect();
+
+    let image_width = images[0].width();
+    let image_height = images[0].height();
+    let total_width = image_width;
+    let total_height = (image_height + padding) * images.len() as u32 + padding;
+
+    let mut combined_image = RgbaImage::new(total_width, total_height);
+
+    let mut y_offset = 0;
+
+    for img in images {
+        combined_image.copy_from(&img, 0, y_offset)?;
+        y_offset += image_height + padding;
+    }
+
+    combined_image.save(output_filename)?;
+    println!("Saved combined histogram to {}", output_filename);
+    return Ok(());
+}
