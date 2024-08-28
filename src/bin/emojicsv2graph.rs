@@ -1,41 +1,44 @@
 use chrono::{NaiveDate, Weekday};
 use csv::Reader;
 use plotters::prelude::*;
-use std::collections::HashMap;
+use std::fs::File;
+use std::{collections::HashMap, io::stdin};
 use std::error::Error;
 use image::{DynamicImage, GenericImage, RgbaImage};
 use std::env;
 use chrono::Datelike;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Retrieve the first command-line argument as the file path
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: {} <file_path>", args[0]);
+
+    if args.contains(&"-h".to_string()) {
+        eprintln!("Usage: {} [file_path] [--one-image]", args[0]);
         return Ok(());
     }
-    let file_path = &args[1];
-    
-    // Reading and parsing the CSV file
-    // csv file is formatted like:dd/mm/yy,hh:mm,name 
-    let mut reader = Reader::from_path(file_path)?;
+
+    let mut reader: Reader<Box<dyn std::io::Read>>;
+    if args.len() > 1 {
+        if args[1].starts_with("--"){
+            reader = Reader::from_reader(Box::new(stdin()));
+        } else {
+            reader = Reader::from_reader(Box::new(File::open(&args[1])?));
+        }
+    }
+    else{
+        reader = Reader::from_reader(Box::new(stdin()));
+    }
 
     let mut data: HashMap<String, [u32; 24]> = HashMap::new();
+    let mut data_day: HashMap<String, HashMap<Weekday, u32>> = HashMap::new();
 
     for result in reader.records() {
         let record = result?;
         let name = record[2].to_string();
         let hour: usize = record[1].split(':').next().unwrap().parse()?;
 
-        // Increment the hour count for the name
         data.entry(name.clone())
             .or_insert([0; 24])[hour] += 1;
-    }
 
-    let mut reader = Reader::from_path(file_path)?;
-    let mut data_day: HashMap<String, HashMap<Weekday, u32>> = HashMap::new();
-    for result in reader.records() {
-        let record = result?;
         let date_str = &record[0];
         let date = NaiveDate::parse_from_str(date_str, "%d/%m/%y")?;
         let name = record[2].to_string();
