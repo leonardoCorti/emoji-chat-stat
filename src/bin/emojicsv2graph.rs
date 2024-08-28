@@ -1,4 +1,5 @@
 use chrono::{NaiveDate, Weekday};
+use std::io::Read;
 use csv::Reader;
 use plotters::prelude::*;
 use std::fs::File;
@@ -16,7 +17,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    let mut reader: Reader<Box<dyn std::io::Read>>;
+    let reader: Reader<Box<dyn std::io::Read>>;
     if args.len() > 1 {
         if args[1].starts_with("--"){
             reader = Reader::from_reader(Box::new(stdin()));
@@ -28,34 +29,40 @@ fn main() -> Result<(), Box<dyn Error>> {
         reader = Reader::from_reader(Box::new(stdin()));
     }
 
-    let mut data: HashMap<String, [u32; 24]> = HashMap::new();
-    let mut data_day: HashMap<String, HashMap<Weekday, u32>> = HashMap::new();
-
-    for result in reader.records() {
-        let record = result?;
-        let name = record[2].to_string();
-        let hour: usize = record[1].split(':').next().unwrap().parse()?;
-
-        data.entry(name.clone())
-            .or_insert([0; 24])[hour] += 1;
-
-        let date_str = &record[0];
-        let date = NaiveDate::parse_from_str(date_str, "%d/%m/%y")?;
-        let name = record[2].to_string();
-        let weekday = date.weekday();
-        *data_day
-            .entry(name.clone()).or_insert(HashMap::new())
-            .entry(weekday).or_insert(0) += 1;
-    }
+    let (data_hours, data_day) = process_input(reader)?;
 
     let one_image = args.contains(&"--one-image".to_string());
 
+    let (max_hour_count, max_day_count) = find_max(one_image, &data_day, &data_hours);
+
+    let mut filenames_by_weekday = Vec::new();
+    let mut filenames_by_hour = Vec::new();
+
+    for (name, day_count) in &data_day {
+        create_histogram_weekday(name, day_count, max_day_count)?;
+        filenames_by_weekday.push(format!("{}-by-weekday.png", name));   
+    }
+
+    for (name, hour_counts) in &data_hours {
+        create_histogram_hours(name, hour_counts, max_hour_count)?;
+        filenames_by_hour.push(format!("{}-by-hour.png", name));
+    }
+
+    if one_image {
+        merge_images(&filenames_by_hour, "all-by-hour.png")?;
+        merge_images(&filenames_by_weekday, "all-by-weekday.png")?;
+    }
+
+    Ok(())
+}
+
+fn find_max(one_image: bool, data_day: &HashMap<String, HashMap<Weekday, u32>>, data_hours: &HashMap<String, [u32; 24]>) -> (Option<u32>, Option<u32>) {
     let mut max_hour_count: Option<u32> = None;
     let mut max_day_count: Option<u32> = None;
     if one_image {
         let mut max_hour: u32 = 0;
         let mut max_day: u32 = 0;
-        for (_, day_count) in &data_day {
+        for (_, day_count) in data_day {
 
             let weekdays = vec![
                 Weekday::Mon,
@@ -73,7 +80,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        for (_, hour_counts) in &data {
+        for (_, hour_counts) in data_hours {
             let max_hour_tmp = *hour_counts.iter().max().unwrap_or(&0);
             if max_hour_tmp > max_hour {
                 max_hour = max_hour_tmp;
@@ -82,27 +89,29 @@ fn main() -> Result<(), Box<dyn Error>> {
         max_hour_count = Some(max_hour);
         max_day_count = Some(max_day);
     }
+    (max_hour_count, max_day_count)
+}
 
-    let mut filenames_by_weekday = Vec::new();
+fn process_input(mut reader: Reader<Box<dyn Read>>) -> Result<(HashMap<String, [u32; 24]>, HashMap<String, HashMap<Weekday, u32>>), Box<dyn Error>> {
+    let mut data: HashMap<String, [u32; 24]> = HashMap::new();
+    let mut data_day: HashMap<String, HashMap<Weekday, u32>> = HashMap::new();
+    for result in reader.records() {
+        let record = result?;
+        let name = record[2].to_string();
+        let hour: usize = record[1].split(':').next().unwrap().parse()?;
 
-    for (name, day_count) in &data_day {
-        create_histogram_weekday(name, day_count, max_day_count)?;
-        filenames_by_weekday.push(format!("{}-by-weekday.png", name));   
+        data.entry(name.clone())
+            .or_insert([0; 24])[hour] += 1;
+
+        let date_str = &record[0];
+        let date = NaiveDate::parse_from_str(date_str, "%d/%m/%y")?;
+        let name = record[2].to_string();
+        let weekday = date.weekday();
+        *data_day
+            .entry(name.clone()).or_insert(HashMap::new())
+            .entry(weekday).or_insert(0) += 1;
     }
-
-    let mut filenames_by_hour = Vec::new();
-    // Creating histograms for each name
-    for (name, hour_counts) in &data {
-        create_histogram_hours(name, hour_counts, max_hour_count)?;
-        filenames_by_hour.push(format!("{}-by-hour.png", name));
-    }
-
-    if one_image {
-        merge_images(&filenames_by_hour, "all-by-hour.png")?;
-        merge_images(&filenames_by_weekday, "all-by-weekday.png")?;
-    }
-
-    Ok(())
+    Ok((data, data_day))
 }
 
 fn merge_images(image_paths: &[String], output_filename: &str) ->  Result<(), Box<dyn Error>> {
