@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
 
     if args.contains(&"-h".to_string()) {
-        eprintln!("Usage: {} [file_path] [--one-image]", args[0]);
+        eprintln!("Usage: {} [file_path] [--one-image] [--clean]", args[0]);
         return Ok(());
     }
 
@@ -32,6 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (data_hours, data_day) = process_input(reader)?;
 
     let one_image = args.contains(&"--one-image".to_string());
+    let clean = args.contains(&"--clean".to_string());
 
     let (max_hour_count, max_day_count) = find_max(one_image, &data_day, &data_hours);
 
@@ -55,6 +56,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         merge_horizontal_images(&filenames_by_weekday, "all-by-weekday.png")?;
         let images: Vec<&str> = vec!["all-by-hour.png", "all-by-weekday.png"];
         merge_vertical_images(&images, "all-graphs.png")?;
+    }
+
+    if clean {
+        filenames_by_weekday.iter()
+            .for_each(|f| std::fs::remove_file(f).unwrap());
+        filenames_by_hour.iter()
+            .for_each(|f| std::fs::remove_file(f).unwrap());
+        std::fs::remove_file("all-by-hour.png")?;
+        std::fs::remove_file("all-by-weekday.png")?;
     }
 
     Ok(())
