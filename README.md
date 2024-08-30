@@ -9,6 +9,8 @@ the --one-image option will make all the graphs have the same scale on the Y axi
 if no input is provided it read from stdin
 
 # emoji2csv
-`Usage: emoji2csv <emoji_to_search> [input_file] [-o output_file]`
+`Usage: emoji2csv <emoji_to_search> [input_file] [-o output_file] [-i]`
 
 if no input file is provided it reads from stdin, if no output file is provided it prints on stdout
+
+-i is for case insensitive search

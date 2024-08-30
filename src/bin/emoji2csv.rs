@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let emoji_searched = if !args[1].starts_with('-') {
         &args[1]
     } else {
-        eprintln!("Usage: {} <emoji_to_search> [<input_file>] [-o <output_file>]", args[0]);
+        eprintln!("Usage: {} <emoji_to_search> [<input_file>] [-o <output_file>] [-i]", args[0]);
         return Ok(());
     };
 
@@ -31,12 +31,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         Box::new(io::stdout())
     };
 
-    process_input(input, output, emoji_searched)?;
+    let is_case_insensitive = args.contains(&"-i".to_string());
+    let string_searched = match is_case_insensitive {
+        true => emoji_searched.to_lowercase(),
+        false => emoji_searched.to_string(),
+    };
+
+    process_input(input, output, &string_searched, is_case_insensitive)?;
     Ok(())
  }
 
 
-fn process_input<R: BufRead, W: Write>(reader: R, mut writer: W, emoji_searched: &str) -> io::Result<()> {
+fn process_input<R: BufRead, W: Write>(reader: R, mut writer: W, emoji_searched: &str, is_case_insensitive: bool) -> io::Result<()> {
     writer.write_all(b"Date,Hour,Name\n")?;
 
     for line in reader.lines() {
@@ -57,7 +63,12 @@ fn process_input<R: BufRead, W: Write>(reader: R, mut writer: W, emoji_searched:
             None => continue,
         };
 
-        if rest.contains(emoji_searched) {
+        let last_section = match is_case_insensitive{
+            true => rest.to_lowercase(),
+            false => rest.to_string(),
+        };
+
+        if last_section.contains(emoji_searched) {
             let new_time = extract_time(rest).unwrap_or_else(|| hour.to_string());
             writer.write_all(format!("{},{},{}\n", date, new_time, name).as_bytes())?;
         }
