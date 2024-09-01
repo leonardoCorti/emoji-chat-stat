@@ -42,11 +42,21 @@ fn main() -> Result<(), Box<dyn Error>> {
  }
 
 
-fn process_input<R: BufRead, W: Write>(reader: R, mut writer: W, emoji_searched: &str, is_case_insensitive: bool) -> io::Result<()> {
+fn process_input<R: BufRead, W: Write>(
+    reader: R,
+    mut writer: W,
+    emoji_searched: &str,
+    is_case_insensitive: bool
+) -> io::Result<()> {
     writer.write_all(b"Date,Hour,Name\n")?;
 
     for line in reader.lines() {
-        let line = line?;
+        let mut line = line?;
+        if line.starts_with("[") { // iphone parsing
+            let new_line = line.strip_prefix("[").unwrap();
+            let new_line = new_line.replacen("]", " -", 1);
+            line = new_line;
+        }
 
         let (date, rest) = match line.split_once(", ") {
             Some(split) => split,
