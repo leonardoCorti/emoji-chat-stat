@@ -28,6 +28,7 @@ fn main() {
     let status = Command::new("emojicsv2graph")
         .arg(output_file)
         .arg("--one-image")
+        .arg("--clean")
         .status()
         .expect("Failed to execute emojicsv2graph");
 
