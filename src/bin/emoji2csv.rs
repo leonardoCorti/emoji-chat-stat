@@ -1,8 +1,8 @@
+use regex::Regex;
 use std::env;
+use std::error::Error;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
-use std::error::Error;
-use regex::Regex;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
@@ -10,7 +10,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let emoji_searched = if !args[1].starts_with('-') {
         &args[1]
     } else {
-        eprintln!("Usage: {} <emoji_to_search> [<input_file>] [-o <output_file>] [-i]", args[0]);
+        eprintln!(
+            "Usage: {} <emoji_to_search> [<input_file>] [-o <output_file>] [-i]",
+            args[0]
+        );
         return Ok(());
     };
 
@@ -39,20 +42,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     process_input(input, output, &string_searched, is_case_insensitive)?;
     Ok(())
- }
-
+}
 
 fn process_input<R: BufRead, W: Write>(
     reader: R,
     mut writer: W,
     emoji_searched: &str,
-    is_case_insensitive: bool
+    is_case_insensitive: bool,
 ) -> io::Result<()> {
     writer.write_all(b"Date,Hour,Name\n")?;
 
     for line in reader.lines() {
         let mut line = line?;
-        if line.starts_with("[") { // iphone parsing
+        if line.starts_with("[") {
+            // iphone parsing
             let new_line = line.strip_prefix("[").unwrap();
             let new_line = new_line.replacen("]", " -", 1);
             line = new_line;
@@ -73,7 +76,7 @@ fn process_input<R: BufRead, W: Write>(
             None => continue,
         };
 
-        let last_section = match is_case_insensitive{
+        let last_section = match is_case_insensitive {
             true => rest.to_lowercase(),
             false => rest.to_string(),
         };
@@ -94,6 +97,6 @@ fn extract_time(s: &str) -> Option<String> {
     if let Some(caps) = re.captures(s) {
         return Some(caps[0].to_string());
     }
-    
+
     None
 }
