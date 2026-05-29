@@ -13,7 +13,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
 
     if args.contains(&"-h".to_string()) {
-        eprintln!("Usage: {} [file_path] [--one-image] [--clean]", args[0]);
+        eprintln!(
+            "Usage: {} [file_path] [--one-image] [--clean] [--new-stats]",
+            args[0]
+        );
         return Ok(());
     }
 
@@ -28,10 +31,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         reader = Reader::from_reader(Box::new(stdin()));
     }
 
-    let (data_hours, data_day) = process_input(reader)?;
+    let (data_hours, data_day, records) = process_input(reader)?;
 
     let one_image = args.contains(&"--one-image".to_string());
     let clean = args.contains(&"--clean".to_string());
+    let new_stats = args.contains(&"--new-stats".to_string());
 
     let (max_hour_count, max_day_count) = find_max(one_image, &data_day, &data_hours);
 
@@ -66,6 +70,25 @@ fn main() -> Result<(), Box<dyn Error>> {
             .for_each(|f| std::fs::remove_file(f).unwrap());
         std::fs::remove_file("all-by-hour.png")?;
         std::fs::remove_file("all-by-weekday.png")?;
+    }
+
+    if new_stats {
+        let weekly = compute_winners(&records, |date| {
+            let w = date.iso_week();
+            format!("{}-W{:02}", w.year(), w.week())
+        });
+        let monthly = compute_winners(&records, |date| {
+            format!("{}-{:02}", date.year(), date.month())
+        });
+        let yearly = compute_winners(&records, |date| {
+            format!("{}", date.year())
+        });
+
+        render_winner_chart("weekly-top.png", "Vincitore settimanale", &weekly)?;
+        render_winner_chart("monthly-top.png", "Vincitore mensile", &monthly)?;
+        render_winner_chart("yearly-top.png", "Vincitore annuale", &yearly)?;
+
+        println!("Saved new-stats images (weekly-top.png, monthly-top.png, yearly-top.png)");
     }
 
     Ok(())
@@ -119,11 +142,13 @@ fn process_input(
     (
         HashMap<String, [u32; 24]>,
         HashMap<String, HashMap<Weekday, u32>>,
+        Vec<(NaiveDate, String)>,
     ),
     Box<dyn Error>,
 > {
     let mut data: HashMap<String, [u32; 24]> = HashMap::new();
     let mut data_day: HashMap<String, HashMap<Weekday, u32>> = HashMap::new();
+    let mut records = Vec::new();
     for result in reader.records() {
         let record = result?;
         let name = record[2].to_string();
@@ -140,8 +165,10 @@ fn process_input(
             .or_insert(HashMap::new())
             .entry(weekday)
             .or_insert(0) += 1;
+
+        records.push((date, name));
     }
-    Ok((data, data_day))
+    Ok((data, data_day, records))
 }
 
 fn merge_horizontal_images(
@@ -276,6 +303,103 @@ fn create_histogram_hours(
     root.present()?;
     println!("Saved histogram to {}", filename);
 
+    Ok(())
+}
+
+fn compute_winners(
+    records: &[(NaiveDate, String)],
+    period_label: fn(&NaiveDate) -> String,
+) -> Vec<(String, String, u32)> {
+    let mut periods: HashMap<String, HashMap<String, u32>> = HashMap::new();
+    for (date, name) in records {
+        let key = period_label(date);
+        *periods
+            .entry(key)
+            .or_default()
+            .entry(name.clone())
+            .or_insert(0) += 1;
+    }
+    let mut winners: Vec<_> = periods
+        .into_iter()
+        .map(|(period, persons)| {
+            let (person, count) = persons.into_iter().max_by_key(|&(_, c)| c).unwrap();
+            (period, person, count)
+        })
+        .collect();
+    winners.sort_by(|a, b| a.0.cmp(&b.0));
+    winners
+}
+
+fn render_winner_chart(
+    filename: &str,
+    title: &str,
+    data: &[(String, String, u32)],
+) -> Result<(), Box<dyn Error>> {
+    if data.is_empty() {
+        return Ok(());
+    }
+
+    let root = BitMapBackend::new(filename, (640, 480)).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let max_count = data.iter().map(|(_, _, c)| *c).max().unwrap_or(1);
+    let n = data.len();
+
+    let mut chart = ChartBuilder::on(&root)
+        .caption(title, ("sans-serif", 30))
+        .x_label_area_size(40)
+        .y_label_area_size(40)
+        .margin(5)
+        .build_cartesian_2d(0usize..n, 0u32..max_count)?;
+
+    chart
+        .configure_mesh()
+        .x_labels(n.min(20))
+        .x_label_formatter(&|x| {
+            if *x < data.len() {
+                data[*x].0.clone()
+            } else {
+                String::new()
+            }
+        })
+        .draw()?;
+
+    let colors = [
+        RED,
+        BLUE,
+        GREEN,
+        MAGENTA,
+        CYAN,
+        RGBColor(255, 128, 0),
+        RGBColor(128, 0, 128),
+    ];
+    let mut color_map: HashMap<&str, RGBColor> = HashMap::new();
+    let mut ci = 0usize;
+
+    for (i, (_, person, count)) in data.iter().enumerate() {
+        let color = *color_map
+            .entry(person.as_str())
+            .or_insert_with(|| {
+                let c = colors[ci % colors.len()];
+                ci += 1;
+                c
+            });
+
+        chart.draw_series(
+            Histogram::vertical(&chart)
+                .style(color.mix(0.5).filled())
+                .data(vec![(i, *count)]),
+        )?;
+
+        chart.draw_series(std::iter::once(Text::new(
+            format!("{}", person),
+            (i, *count + max_count / 20),
+            ("sans-serif", 14).into_font().transform(FontTransform::Rotate90),
+        )))?;
+    }
+
+    root.present()?;
+    println!("Saved {}", filename);
     Ok(())
 }
 
